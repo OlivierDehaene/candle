@@ -42,7 +42,7 @@ mod ffi {
             b: *const c_float,
             ldb: *const c_int,
             beta: *const c_float,
-            c: *mut c_float,
+            c: *const c_float,
             ldc: *const c_int,
         );
         pub fn dgemm_(
@@ -92,7 +92,7 @@ pub unsafe fn sgemm(
     b: &[f32],
     ldb: i32,
     beta: f32,
-    c: &mut [f32],
+    c: &[f32],
     ldc: i32,
 ) {
     ffi::sgemm_(
@@ -107,7 +107,7 @@ pub unsafe fn sgemm(
         b.as_ptr(),
         &ldb,
         &beta,
-        c.as_mut_ptr(),
+        c.as_ptr(),
         &ldc,
     )
 }

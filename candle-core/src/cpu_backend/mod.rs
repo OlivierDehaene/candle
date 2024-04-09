@@ -5,6 +5,7 @@ use half::{bf16, f16};
 use rayon::prelude::*;
 
 mod utils;
+
 pub use utils::{
     binary_map, binary_map_vec, unary_map, unary_map_vec, Map1, Map1Any, Map2, Map2U8,
 };
@@ -30,6 +31,7 @@ pub enum CpuStorage {
 pub struct CpuDevice;
 
 struct Cmp(CmpOp);
+
 impl Map2U8 for Cmp {
     const OP: &'static str = "cmp";
     #[inline(always)]
@@ -99,11 +101,11 @@ impl ReduceIndex {
     // The value gets replaced if f(s[current_acc], s[i]) returns true.
     #[inline(always)]
     fn fold_impl<T, U, F, G>(&self, src: &[T], src_l: &Layout, f: F, g: G) -> Result<Vec<U>>
-    where
-        T: Clone + Copy,
-        U: Clone + Copy,
-        F: Fn(T, T) -> bool,
-        G: Fn(T, usize) -> U,
+        where
+            T: Clone + Copy,
+            U: Clone + Copy,
+            F: Fn(T, T) -> bool,
+            G: Fn(T, usize) -> U,
     {
         let reduce_dim_size = src_l.dims()[self.reduce_dim_index];
         let reduce_dim_stride = src_l.stride()[self.reduce_dim_index];
@@ -206,8 +208,8 @@ struct ReduceSum<'a> {
 impl<'a> ReduceSum<'a> {
     #[inline(always)]
     fn fold_impl<T>(&self, src: &[T], src_l: &Layout, start_elt: T) -> Result<Vec<T>>
-    where
-        T: WithDType,
+        where
+            T: WithDType,
     {
         let mut dst = vec![start_elt; self.dst_shape.elem_count()];
         match src_l.contiguous_offsets() {
@@ -477,7 +479,7 @@ impl<'a, I: IntDType> Map1 for Gather<'a, I> {
                             size: src_dim_len,
                             op: "gather",
                         }
-                        .bt())?
+                            .bt())?
                     }
                     let src_idx = start_src_idx + index * src_right_len + right_i;
                     dst[dst_idx] = src[src_idx]
@@ -508,7 +510,7 @@ impl<'a, I: IntDType> Map1 for IndexSelect<'a, I> {
                 got: d.len(),
                 shape: self.ids_l.shape().clone(),
             }
-            .bt())?,
+                .bt())?,
         };
         let stride_ids = self.ids_l.stride()[0];
         let mut dst_dims = layout.dims().to_vec();
@@ -529,7 +531,7 @@ impl<'a, I: IntDType> Map1 for IndexSelect<'a, I> {
                         size: src_dim,
                         op: "index-select",
                     }
-                    .bt())?
+                        .bt())?
                 }
                 let start_src_idx = start_src_idx + index * right_len;
                 let start_dst_idx = start_dst_idx + i * right_len;
@@ -586,7 +588,7 @@ impl<'a, I: IntDType> Map2 for ScatterAdd<'a, I> {
                             size: dst_dim_len,
                             op: "gather",
                         }
-                        .bt())?
+                            .bt())?
                     }
                     let dst_idx = start_dst_idx + index * dst_right_len + right_i;
                     dst[dst_idx] += src[ids_idx]
@@ -1202,7 +1204,7 @@ impl MatMul {
             bmnk: self.0,
             msg,
         }))
-        .bt()
+            .bt()
     }
 
     fn ab_skip(&self, lhs_l: &Layout, rhs_l: &Layout) -> Result<(usize, usize)> {
@@ -1470,25 +1472,26 @@ impl Map2 for MatMul {
                 }
             }
             DType::F32 => {
-                for step in 0..b {
-                    let lhs_p = &lhs[step * a_skip..];
-                    let rhs_p = &rhs[step * b_skip..];
-                    let dst_p = &mut dst[step * c_skip..];
-                    unsafe {
-                        let a = rhs_p.as_ptr() as *const f32;
-                        let b = lhs_p.as_ptr() as *const f32;
-                        let c = dst_p.as_mut_ptr() as *mut f32;
-                        let a = std::slice::from_raw_parts(a, a_skip);
-                        let b = std::slice::from_raw_parts(b, b_skip);
-                        let c = std::slice::from_raw_parts_mut(c, c_skip);
-                        crate::mkl::sgemm(
-                            transa, transb, /* m= */ n as i32, /* n= */ m as i32,
-                            /* k= */ k as i32, /* alpha= */ 1., /* a= */ a,
-                            /* lda= */ lda, /* b= */ b, /* ldb= */ ldb,
-                            /* beta= */ 0., /* c= */ c, /* ldc= */ n as i32,
-                        )
-                    }
-                }
+                (0..b).into_par_iter().map(|step|
+                    {
+                        let lhs_p = &lhs[step * a_skip..];
+                        let rhs_p = &rhs[step * b_skip..];
+                        let dst_p = &dst[step * c_skip..];
+                        unsafe {
+                            let a = rhs_p.as_ptr() as *const f32;
+                            let b = lhs_p.as_ptr() as *const f32;
+                            let c = dst_p.as_ptr() as *mut f32;
+                            let a = std::slice::from_raw_parts(a, a_skip);
+                            let b = std::slice::from_raw_parts(b, b_skip);
+                            let c = std::slice::from_raw_parts(c, c_skip);
+                            crate::mkl::sgemm(
+                                transa, transb, /* m= */ n as i32, /* n= */ m as i32,
+                                /* k= */ k as i32, /* alpha= */ 1., /* a= */ a,
+                                /* lda= */ lda, /* b= */ b, /* ldb= */ ldb,
+                                /* beta= */ 0., /* c= */ c, /* ldc= */ n as i32,
+                            )
+                        }
+                    }).collect::<()>();
             }
             DType::F64 => {
                 for step in 0..b {
@@ -1854,7 +1857,7 @@ impl BackendStorage for CpuStorage {
                     reduce_dims: &reduce_dims,
                     reduce_dims_and_stride,
                 }
-                .map(self, layout)
+                    .map(self, layout)
             }
             ReduceOp::Min | ReduceOp::ArgMin | ReduceOp::Max | ReduceOp::ArgMax => {
                 let reduce_dim_index = match reduce_dims {
@@ -1883,7 +1886,7 @@ impl BackendStorage for CpuStorage {
                     use_min,
                     return_index,
                 }
-                .map(self, layout)
+                    .map(self, layout)
             }
         }
     }
@@ -2096,7 +2099,7 @@ impl BackendStorage for CpuStorage {
                     rhs: rhs.dtype(),
                     op: B::NAME,
                 }
-                .bt())
+                    .bt())
             }
         }
     }
@@ -2137,7 +2140,7 @@ impl BackendStorage for CpuStorage {
                     rhs: dst.dtype(),
                     op: "copy2d",
                 }
-                .bt());
+                    .bt());
             }
         }
         Ok(())
@@ -2159,7 +2162,7 @@ impl BackendStorage for CpuStorage {
                     rhs: dst.dtype(),
                     op: "copy_strided",
                 }
-                .bt());
+                    .bt());
             }
         }
         Ok(())
@@ -2276,7 +2279,7 @@ impl BackendStorage for CpuStorage {
             Col2Im1D {
                 stride: params.stride,
             }
-            .map(&col, &col_l)
+                .map(&col, &col_l)
         } else {
             ConvTranspose1D(params).map(self, l, kernel, kernel_l)
         }
